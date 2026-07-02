@@ -1,0 +1,30 @@
+#!/usr/sbin/nft -f
+#
+# redirect.nft — send *marked* (agent) HTTP/HTTPS to the local mitmproxy.
+#
+# The eBPF tagger stamps fwmark 0xA1 on the sockets of configured agents and
+# their subprocesses. We only ever touch marked traffic; everything else on the
+# box (other users' git/npm/browsers, and mitmproxy's own upstream connections)
+# is unmarked and flows out untouched — which also means no redirect loop.
+#
+# Idempotent: the create-then-delete dance makes re-loading clean.
+
+table inet agentmark {}
+delete table inet agentmark
+
+table inet agentmark {
+	# DNAT/REDIRECT for locally-originated agent traffic.
+	chain output_nat {
+		type nat hook output priority -100; policy accept;
+
+		# Agent TCP to 80/443 → local transparent proxy on :8080.
+		meta mark 0xa1 tcp dport { 80, 443 } redirect to :8080
+	}
+
+	# Drop agent QUIC so HTTP/3 clients fall back to TCP+TLS the proxy can see.
+	chain output_filter {
+		type filter hook output priority 0; policy accept;
+
+		meta mark 0xa1 udp dport 443 reject
+	}
+}

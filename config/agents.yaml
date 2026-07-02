@@ -1,0 +1,15 @@
+# agents.yaml — coding-agent binaries whose outbound HTTP(S) traffic gets the
+# `X-AI-Agent: TRUE` header, along with EVERY subprocess they spawn.
+#
+# This is the YAML equivalent of agents.conf, consumed by the Go loader
+# (tagger/go). The C loader (tagger/c) reads agents.conf instead.
+#
+# Use the path the user actually runs (what `command -v <agent>` prints), NOT
+# the resolved interpreter/script — see the README ("Match by path, not inode").
+#   command -v claude   # → e.g. /usr/local/bin/claude
+#   command -v codex    # → e.g. /usr/local/bin/codex
+#
+# After editing this file: restart the tagger so it re-reads the allow-list.
+agents:
+  - /usr/local/bin/claude
+  # - /usr/local/bin/codex
