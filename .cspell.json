@@ -1,0 +1,22 @@
+{
+  "version": "0.2",
+  "language": "en-GB",
+  "ignorePaths": [
+    "**/go.sum",
+    "**/go.mod",
+    "**/*.o",
+    "**/vmlinux.h",
+    "LICENSE"
+  ],
+  "words": [
+    "agentmark", "ebpf", "bpf", "bpftool", "libbpf", "libelf", "cilium",
+    "mitmproxy", "mitmdump", "nftables", "conntrack", "cgroup", "cgroups",
+    "cgroup2fs", "sysctl", "sysctls", "fwmark", "tgid", "execve", "tracepoint",
+    "tracepoints", "vmlinux", "skel", "setsockopt", "getsockopt", "dport",
+    "certifi", "noninteractive", "journalctl", "systemd", "postman", "runtimes",
+    "unmarked", "subprocess", "subprocesses", "toolchain", "sbin", "addon",
+    "allowlist", "codex", "namespaces", "localnet", "loopback", "Budlee",
+    "structs", "userspace", "zlib", "gofmt", "bpfel", "bpfeb", "reinstall",
+    "Noble", "Ubuntu", "libbpf-dev", "libelf-dev", "zlib1g-dev", "linux-tools"
+  ]
+}

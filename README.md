@@ -1,5 +1,8 @@
 # agentmark
 
+[![ci](https://github.com/Budlee/agentmark/actions/workflows/ci.yml/badge.svg)](https://github.com/Budlee/agentmark/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Mark every outbound HTTP(S) request from a coding agent — and all of its
 subprocesses — with an `X-AI-Agent: TRUE` header, on a multi-user Linux VM, without
 touching the agent.**
