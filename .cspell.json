@@ -17,6 +17,7 @@
     "unmarked", "subprocess", "subprocesses", "toolchain", "sbin", "addon",
     "allowlist", "codex", "namespaces", "localnet", "loopback", "Budlee",
     "structs", "userspace", "zlib", "gofmt", "bpfel", "bpfeb", "reinstall",
-    "Noble", "Ubuntu", "libbpf-dev", "libelf-dev", "zlib1g-dev", "linux-tools"
+    "Noble", "Ubuntu", "libbpf-dev", "libelf-dev", "zlib1g-dev", "linux-tools",
+    "teardown", "showhost", "confdir", "QUIC", "objs", "progs", "skel", "npm"
   ]
 }
