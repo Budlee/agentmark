@@ -4,9 +4,9 @@
 # runtime an agent might use accepts the proxy's certificates *without* any
 # launch-time action by the user.
 #
-#   curl / Go / OpenSSL  → system trust store (/etc/ssl/certs)
-#   Node                 → NODE_EXTRA_CA_CERTS (via /etc/environment)
-#   Python (requests…)   → certifi bundle + REQUESTS_CA_BUNDLE/SSL_CERT_FILE
+#   curl / Go / OpenSSL / Python stdlib  → system trust store (/etc/ssl/certs)
+#   Python requests/httpx                → certifi bundle
+#   Node                                 → NODE_EXTRA_CA_CERTS (via /etc/environment)
 #
 # Idempotent. Run as root. See the README ("The CA") for why this is unavoidable.
 #
@@ -17,7 +17,6 @@ CONFDIR=/etc/agentmark/mitmproxy
 CA_PEM="$CONFDIR/mitmproxy-ca-cert.pem"
 CA_DST=/usr/local/share/ca-certificates/agentmark-mitmproxy.crt
 ENV_FILE=/etc/environment
-SYS_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 MITMDUMP="$(command -v mitmdump || true)"
 
 mkdir -p "$CONFDIR"
@@ -39,15 +38,15 @@ echo "[*] Installing CA into the system trust store ..."
 cp "$CA_PEM" "$CA_DST"
 update-ca-certificates >/dev/null
 
-# 3) Persistent env for Node + Python (read by PAM on login → inherited by all
-#    child processes, incl. anything an agent shells out to).
-echo "[*] Writing /etc/environment entries ..."
+# 3) Node is the one runtime that ignores BOTH the system store and certifi, so it
+#    needs an explicit pointer. /etc/environment is read by PAM on login → the var
+#    is inherited by every child process an agent spawns. curl/Go/Python need no
+#    env var (they're covered by steps 2 and 4).
+echo "[*] Writing /etc/environment entry (Node) ..."
 sed -i '/# >>> agentmark >>>/,/# <<< agentmark <<</d' "$ENV_FILE" 2>/dev/null || true
 cat >> "$ENV_FILE" <<EOF
 # >>> agentmark >>>
 NODE_EXTRA_CA_CERTS=$CA_PEM
-REQUESTS_CA_BUNDLE=$SYS_BUNDLE
-SSL_CERT_FILE=$SYS_BUNDLE
 # <<< agentmark <<<
 EOF
 

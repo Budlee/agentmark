@@ -107,7 +107,8 @@ sudo install -D -m0644 config/agents.conf   /etc/agentmark/agents.conf
 sudo install -D -m0644 config/agents.yaml   /etc/agentmark/agents.yaml
 sudo install -D -m0644 mitm/inject_addon.py /etc/agentmark/inject_addon.py
 
-# 3. Trust the MITM CA VM-wide (curl/Go via the system store; Node/Python via
+# 3. Trust the MITM CA VM-wide. curl/Go/Python are covered automatically (system
+#    store + certifi); only Node needs a pointer (NODE_EXTRA_CA_CERTS in
 #    /etc/environment). This is the unavoidable cost of terminating TLS.
 sudo bash setup/ca-install.sh
 
