@@ -3,9 +3,10 @@
 [![ci](https://github.com/Budlee/agentmark/actions/workflows/ci.yml/badge.svg)](https://github.com/Budlee/agentmark/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Mark every outbound HTTP(S) request from a coding agent — and all of its
-subprocesses — with an `X-AI-Agent: TRUE` header, on a multi-user Linux VM, without
-touching the agent.**
+**Mark every outbound HTTP(S) request made by the *subprocesses* a coding agent
+spawns — its tool calls: `bash`, `curl`, `python`, `git`, … — with an
+`X-AI-Agent: TRUE` header, on a multi-user Linux VM, without touching the agent. The
+agent's **own** traffic (e.g. its LLM-API calls) is deliberately left untouched.**
 
 Two guarantees:
 
@@ -13,8 +14,8 @@ Two guarantees:
 2. **The launch command is still just `claude`** — a user logs in, types `claude`,
    and notices nothing. All the machinery lives on the VM, set up once.
 
-…and **scoped**: a user's own `git`/`npm`/browser traffic is left alone. Only the
-configured agents and their descendants are marked.
+…and **scoped**: a user's own `git`/`npm`/browser traffic is left alone — and so is
+the agent process itself. Only the **subprocesses** a configured agent spawns are marked.
 
 ## The one hard constraint (read this first)
 
@@ -28,20 +29,22 @@ design.
 
 ```mermaid
 flowchart LR
-    A["claude + subprocesses<br/>(any runtime)"] -->|TCP :80/:443| K
+    A["coding agent (claude)"] -.->|its own LLM/API traffic: unmarked| S
+    A -->|spawns| SUB["its subprocesses<br/>bash · curl · python …"]
+    SUB -->|TCP :80/:443| K
     subgraph K["Linux kernel"]
-      EBPF["eBPF tagger<br/>(identity): is this an agent?<br/>→ set fwmark 0xA1"]
-      NFT["nftables<br/>(redirect): marked → :8080<br/>conntrack saves orig dst"]
+      EBPF["eBPF tagger (identity):<br/>subprocess of an agent?<br/>→ set fwmark 0xA1"]
+      NFT["nftables (redirect):<br/>marked → :8080<br/>conntrack saves orig dst"]
       EBPF --> NFT
     end
-    NFT --> PX["mitmproxy :8080<br/>(TLS + inject):<br/>terminate TLS, add header, forward"]
+    NFT --> PX["mitmproxy :8080 (TLS + inject):<br/>terminate TLS, add header, forward"]
     PX --> S["real server"]
     G["other users' git/npm/browser"] -.->|unmarked, untouched| S
 ```
 
-- **eBPF** decides *identity* — which processes are agents (and their children) — and
-  stamps a firewall mark on their sockets. The mark is the only thing it does; it's
-  otherwise inert.
+- **eBPF** decides *identity* — which processes are **subprocesses of a configured
+  agent** (the agent itself is tracked, but left unmarked) — and stamps a firewall mark
+  on their sockets. The mark is the only thing it does; it's otherwise inert.
 - **nftables** does the *redirect*: marked traffic → the local proxy, and `conntrack`
   remembers the original destination. **Without this the mark does nothing.**
 - **mitmproxy** terminates TLS with a VM-trusted CA, the addon adds the header, and it
@@ -145,28 +148,32 @@ To use Go instead: build `tagger/go` and install `tagger-go` as
 ## Verify
 
 ```sh
-# TAGGED agent → header reaches the real server (postman-echo echoes it back):
-/usr/local/bin/claude    # or a fake agent; see below
-
-# a quick fake agent (a #!/bin/bash script, exactly like `claude` is a node script):
-printf '#!/bin/bash\nexec curl -s https://postman-echo.com/get\n' | sudo tee /usr/local/bin/fake-agent
+# A fake agent (a #!/bin/bash script, like `claude` is a node script) that SPAWNS a
+# subprocess. Note: `curl` WITHOUT `exec` — so curl runs as a *child* of the agent,
+# which is what gets tagged. `exec curl` would replace the agent process itself,
+# which is left untouched (so it would NOT be tagged).
+printf '#!/bin/bash\ncurl -s https://postman-echo.com/get\n' | sudo tee /usr/local/bin/fake-agent
 sudo chmod +x /usr/local/bin/fake-agent
 echo /usr/local/bin/fake-agent | sudo tee -a /etc/agentmark/agents.conf   # then restart the tagger
 
+# SUBPROCESS of the agent → header reaches the real server (postman-echo echoes it):
 /usr/local/bin/fake-agent | grep -i x-ai-agent          # → "x-ai-agent": "TRUE"
 
-# SCOPE PROOF — the same request, untagged, is untouched:
+# SCOPE PROOF — the same request, not under any agent, is untouched:
 curl -s https://postman-echo.com/get | grep -i x-ai-agent || echo "no header (correct)"
 
-# watch the live tag set:
+# The agent's OWN traffic is untouched too — only what it spawns is tagged.
+# Live tag set: the agent root has value 0 (tracked, not marked); tagged
+# subprocesses have value 1 (marked).
 sudo bpftool map dump name tagged_pids
 ```
 
 ## Security & limitations (don't skip)
 
-- **You are decrypting the agents' traffic** — including their own API keys and
-  tokens. The MITM **CA private key is a skeleton key**; keep it `600`, on the VM
-  only, never commit it.
+- **You are decrypting the agent's *subprocess* traffic** — and any tokens those tool
+  calls carry. The agent's **own** LLM-API traffic (and its API key) is *not*
+  decrypted, since the agent process itself is left unmarked. The MITM **CA private
+  key is a skeleton key**; keep it `600`, on the VM only, never commit it.
 - **Certificate-pinned endpoints** reject the MITM CA — those calls fail rather than
   get injected (Claude's own API traffic is fine; it supports custom CAs).
 - **QUIC/HTTP-3** is blocked (UDP/443 reject) to force TCP+TLS the proxy can see.

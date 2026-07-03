@@ -56,21 +56,23 @@ struct {
 	__uint(max_entries, 1 << 18);   /* 256 KiB */
 } events SEC(".maps");
 
-static __always_inline void tag_tgid(__u32 tgid)
+/* Record a tgid in tagged_pids. mark=1 → its sockets get stamped (a subprocess
+ * of an agent); mark=0 → recorded for descendant-tracking only, NOT stamped (the
+ * agent process itself — we tag what it spawns, not the agent's own traffic). */
+static __always_inline void tag_tgid(__u32 tgid, __u8 mark)
 {
-	__u8 one = 1;
-	bpf_map_update_elem(&tagged_pids, &tgid, &one, BPF_ANY);
+	bpf_map_update_elem(&tagged_pids, &tgid, &mark, BPF_ANY);
 }
 
 /*
- * EXEC: a process just successfully exec'd a new program. We read the invoked
- * path (bprm->filename) and tag the process if it's an agent. Fires *before*
- * the new program runs, so the tag is in place before the agent makes any call.
+ * EXEC: a process just successfully exec'd a new program. If the invoked path
+ * (bprm->filename) is an agent, we record it as an agent ROOT (mark=0): its
+ * descendants get tagged, but its OWN sockets are left untouched — we tag what
+ * the agent spawns (its tool subprocesses), not the agent's own traffic.
  *
  * We only ever ADD here. A Node-based agent re-execs (claude → env → node) keep
- * the same PID; the first exec (filename = the agent path) tags it, and the
- * later `node` exec doesn't match but never untags. Likewise a descendant that
- * was tagged via fork and then execs `curl` stays tagged.
+ * the same PID; the first exec (filename = the agent path) records it, and the
+ * later `node` exec doesn't match but never removes it.
  */
 SEC("tp_btf/sched_process_exec")
 int BPF_PROG(on_exec, struct task_struct *p, pid_t old_pid, struct linux_binprm *bprm)
@@ -84,7 +86,7 @@ int BPF_PROG(on_exec, struct task_struct *p, pid_t old_pid, struct linux_binprm 
 
 	if (bpf_map_lookup_elem(&agent_paths, &key)) {
 		__u32 tgid = BPF_CORE_READ(p, tgid);
-		tag_tgid(tgid);
+		tag_tgid(tgid, 0);   /* agent root: track descendants, but don't mark it */
 
 		/* Tell the loader an agent just started. */
 		struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
@@ -99,16 +101,23 @@ int BPF_PROG(on_exec, struct task_struct *p, pid_t old_pid, struct linux_binprm 
 }
 
 /*
- * FORK: propagate the tag down the process tree. If the parent is an agent (or
- * a tagged descendant), the child inherits the tag. Fires before the child runs.
+ * FORK: propagate the tag down the process tree. If the parent is in the agent
+ * tree (the agent root OR an already-tagged descendant), the NEW child process
+ * is tagged for marking (mark=1). Fires before the child runs.
+ *
+ * The `ctgid != ptgid` guard skips thread creation (a new thread shares its
+ * parent's tgid). Without it, a worker thread spawned by the agent root would
+ * add the ROOT's tgid as a marked descendant — and we'd stamp the agent's own
+ * traffic, the exact thing this design avoids.
  */
 SEC("tp_btf/sched_process_fork")
 int BPF_PROG(on_fork, struct task_struct *parent, struct task_struct *child)
 {
 	__u32 ptgid = BPF_CORE_READ(parent, tgid);
+	__u32 ctgid = BPF_CORE_READ(child, tgid);
 
-	if (bpf_map_lookup_elem(&tagged_pids, &ptgid))
-		tag_tgid(BPF_CORE_READ(child, tgid));
+	if (ctgid != ptgid && bpf_map_lookup_elem(&tagged_pids, &ptgid))
+		tag_tgid(ctgid, 1);   /* subprocess of an agent: mark its sockets */
 
 	return 0;
 }
@@ -132,17 +141,20 @@ int BPF_PROG(on_exit, struct task_struct *p)
 
 /*
  * CONNECT (IPv4): runs in the context of the process calling connect(). If that
- * process is tagged, stamp AGENT_MARK on the socket via SO_MARK. The mark is
- * copied to every outgoing skb, where nftables matches it. Returning 1 allows
- * the connection (0 would block it). bpf_setsockopt() is permitted in the
- * INET4/INET6_CONNECT cgroup hooks on modern kernels (>= 5.8).
+ * process is a tagged *subprocess* of an agent (tagged_pids value == 1), stamp
+ * AGENT_MARK on the socket via SO_MARK. The agent root (value 0) is skipped, so
+ * the agent's own traffic is never marked. The mark is copied to every outgoing
+ * skb, where nftables matches it. Returning 1 allows the connection (0 would
+ * block it). bpf_setsockopt() is permitted in the INET4/INET6_CONNECT cgroup
+ * hooks on modern kernels (>= 5.8).
  */
 SEC("cgroup/connect4")
 int cg_connect4(struct bpf_sock_addr *ctx)
 {
 	__u32 tgid = bpf_get_current_pid_tgid() >> 32;
 
-	if (bpf_map_lookup_elem(&tagged_pids, &tgid)) {
+	__u8 *m = bpf_map_lookup_elem(&tagged_pids, &tgid);
+	if (m && *m) {   /* *m==1 → tagged subprocess; agent root is *m==0 (not marked) */
 		__u32 mark = AGENT_MARK;
 		bpf_setsockopt(ctx, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
 	}
@@ -155,7 +167,8 @@ int cg_connect6(struct bpf_sock_addr *ctx)
 {
 	__u32 tgid = bpf_get_current_pid_tgid() >> 32;
 
-	if (bpf_map_lookup_elem(&tagged_pids, &tgid)) {
+	__u8 *m = bpf_map_lookup_elem(&tagged_pids, &tgid);
+	if (m && *m) {   /* *m==1 → tagged subprocess; agent root is *m==0 (not marked) */
 		__u32 mark = AGENT_MARK;
 		bpf_setsockopt(ctx, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
 	}

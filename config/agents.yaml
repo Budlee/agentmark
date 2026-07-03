@@ -1,5 +1,6 @@
-# agents.yaml — coding-agent binaries whose outbound HTTP(S) traffic gets the
-# `X-AI-Agent: TRUE` header, along with EVERY subprocess they spawn.
+# agents.yaml — coding-agent binaries whose SUBPROCESSES get the `X-AI-Agent: TRUE`
+# header on their outbound HTTP(S). The agent's own traffic is left untouched; only
+# the tool processes it spawns (bash, curl, python, …) are tagged.
 #
 # This is the YAML equivalent of agents.conf, consumed by the Go loader
 # (tagger/go). The C loader (tagger/c) reads agents.conf instead.
