@@ -38,4 +38,11 @@ struct path_key {
 	char path[MAX_PATH_LEN];
 };
 
+/* Streamed from the exec hook to the loader via a ring buffer when a configured
+ * agent starts, so the loader can log the start in real time. */
+struct event {
+	__u32 pid;
+	char  path[MAX_PATH_LEN];
+};
+
 #endif /* __TAGGER_H */

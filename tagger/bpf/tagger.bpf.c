@@ -49,6 +49,13 @@ struct {
 	__type(value, __u8);
 } tagged_pids SEC(".maps");
 
+/* Ring buffer: the exec hook streams an event here when a configured agent
+ * starts, so the userspace loader can log it live. */
+struct {
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries, 1 << 18);   /* 256 KiB */
+} events SEC(".maps");
+
 static __always_inline void tag_tgid(__u32 tgid)
 {
 	__u8 one = 1;
@@ -75,8 +82,18 @@ int BPF_PROG(on_exec, struct task_struct *p, pid_t old_pid, struct linux_binprm 
 	 * leaving the tail zeroed to match the loader's zero-padded keys. */
 	bpf_probe_read_kernel_str(key.path, sizeof(key.path), filename);
 
-	if (bpf_map_lookup_elem(&agent_paths, &key))
-		tag_tgid(BPF_CORE_READ(p, tgid));
+	if (bpf_map_lookup_elem(&agent_paths, &key)) {
+		__u32 tgid = BPF_CORE_READ(p, tgid);
+		tag_tgid(tgid);
+
+		/* Tell the loader an agent just started. */
+		struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+		if (e) {
+			e->pid = tgid;
+			__builtin_memcpy(e->path, key.path, sizeof(e->path));
+			bpf_ringbuf_submit(e, 0);
+		}
+	}
 
 	return 0;
 }

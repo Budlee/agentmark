@@ -28,7 +28,9 @@ sudo ./tagger [agents.conf] [cgroup-root]
 
 It reads the allow-list, attaches the exec/fork/exit tracepoints and the
 cgroup/connect hooks, then runs until signalled (the kernel detaches everything on
-exit). While running: `sudo bpftool map dump name tagged_pids` shows the live set.
+exit). It prints `[+] agent started: pid=… <path>` in real time whenever a
+configured agent execs (streamed from the kernel via a ring buffer). While running:
+`sudo bpftool map dump name tagged_pids` shows the live set.
 
 ## Structure
 

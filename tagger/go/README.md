@@ -29,7 +29,8 @@ sudo ./tagger-go [-agents /etc/agentmark/agents.yaml] [-cgroup /sys/fs/cgroup]
 ```
 
 Reads the YAML allow-list, attaches the four hooks, and blocks until SIGINT/SIGTERM
-(the kernel detaches on exit).
+(the kernel detaches on exit). It also prints a `[+] agent started` line in real
+time whenever a configured agent execs (streamed from the kernel via a ring buffer).
 
 ## How it maps to the C loader
 

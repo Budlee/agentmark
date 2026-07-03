@@ -178,11 +178,20 @@ static int attach_cgroup_connect(struct tagger_bpf *skel, const char *cgroup_pat
 	return 0;
 }
 
+/* Ring-buffer callback: log a line when a configured agent starts. */
+static int handle_event(void *ctx, void *data, size_t len)
+{
+	const struct event *e = data;
+	printf("  [+] agent started: pid=%u  %s\n", e->pid, e->path);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	const char *agents_path = argc > 1 ? argv[1] : "/etc/agentmark/agents.conf";
 	const char *cgroup_path = argc > 2 ? argv[2] : "/sys/fs/cgroup";
 	struct agent_list agents;
+	struct ring_buffer *rb = NULL;
 	int n = 0, rc = 1;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);  /* line-buffered: logs appear promptly under systemd */
@@ -209,15 +218,29 @@ int main(int argc, char **argv)
 	if (attach_cgroup_connect(skel, cgroup_path) < 0)
 		goto cleanup;
 
-	/* Run until signalled; the kernel detaches everything when we exit. */
+	/* Stream agent-start events from the exec hook so we can log them live. */
+	rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event, NULL, NULL);
+	if (!rb) {
+		fprintf(stderr, "failed to create ring buffer\n");
+		goto cleanup;
+	}
+
+	/* Run until signalled, polling the ring buffer for agent-start events; the
+	 * kernel detaches everything when we exit. */
 	printf("agent-tagger running: %d agent paths, mark=0x%x. Signal to stop.\n",
 	       n, AGENT_MARK);
-	while (!stop)
-		pause();
+	while (!stop) {
+		int err = ring_buffer__poll(rb, 200 /* ms */);
+		if (err < 0 && err != -EINTR) {
+			fprintf(stderr, "ring_buffer__poll failed: %d\n", err);
+			break;
+		}
+	}
 
 	rc = 0;
 
 cleanup:
+	ring_buffer__free(rb);
 	tagger_bpf__destroy(skel);
 	return rc;
 }

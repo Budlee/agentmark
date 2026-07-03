@@ -20,7 +20,9 @@ package main
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -go-package main tagger ../bpf/tagger.bpf.c -- -I../bpf
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +33,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
 	"gopkg.in/yaml.v3"
 )
@@ -53,6 +56,13 @@ type pathKey [maxPathLen]byte
 //	  - /usr/local/bin/claude
 type agentsFile struct {
 	Agents []string `yaml:"agents"`
+}
+
+// startEvent mirrors `struct event { __u32 pid; char path[256]; }` in tagger.h —
+// streamed from the exec hook via a ring buffer when a configured agent starts.
+type startEvent struct {
+	Pid  uint32
+	Path [maxPathLen]byte
 }
 
 func main() {
@@ -101,6 +111,14 @@ func run() error {
 	}
 	defer connects.Close()
 
+	// Stream agent-start events from the exec hook and log them live.
+	rd, err := ringbuf.NewReader(objs.Events)
+	if err != nil {
+		return fmt.Errorf("open ringbuf: %w", err)
+	}
+	defer rd.Close()
+	go streamEvents(rd)
+
 	log.Printf("agent-tagger running: %d agent paths, mark=%#x", n, agentMark)
 
 	// Run until interrupted; the deferred Close() calls detach on the way out.
@@ -110,6 +128,29 @@ func run() error {
 
 	log.Println("signal received, detaching")
 	return nil
+}
+
+// streamEvents reads agent-start events from the ring buffer and logs each one,
+// until the reader is closed on shutdown. The Go twin of the C loader's
+// ring_buffer__poll loop + handle_event.
+func streamEvents(rd *ringbuf.Reader) {
+	var e startEvent
+	for {
+		rec, err := rd.Read()
+		if err != nil {
+			if errors.Is(err, ringbuf.ErrClosed) {
+				return
+			}
+			log.Printf("ringbuf read: %v", err)
+			continue
+		}
+		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &e); err != nil {
+			log.Printf("parse event: %v", err)
+			continue
+		}
+		path := string(bytes.TrimRight(e.Path[:], "\x00"))
+		log.Printf("[+] agent started: pid=%d  %s", e.Pid, path)
+	}
 }
 
 // parseAgents reads the YAML allow-list and returns the configured paths.
