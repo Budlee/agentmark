@@ -6,14 +6,17 @@ does the exact same job; pick either.
 
 ## Build
 
+The eBPF program builds separately in [`../bpf`](../bpf); this Makefile just links
+the C loader against its skeleton:
+
 ```sh
-make          # → ./tagger   (needs clang, bpftool, libbpf-dev, libelf, zlib)
+make -C ../bpf   # 1. compile the eBPF program → ../bpf/tagger.skel.h
+make             # 2. link the C loader        → ./tagger
 ```
 
-`make` runs the CO-RE pipeline: `bpftool btf dump` generates `../bpf/vmlinux.h`,
-`clang -target bpf` compiles `../bpf/tagger.bpf.c`, `bpftool gen skeleton` wraps it,
-and `cc` links the loader against libbpf. Build **on the target machine** — CO-RE
-needs that kernel's BTF.
+Or run `make` here alone — it builds `../bpf` on demand. Needs `cc` + libbpf-dev +
+libelf + zlib (and `../bpf`'s clang + bpftool). Build **on the target machine** —
+CO-RE needs that kernel's BTF.
 
 ## Run
 

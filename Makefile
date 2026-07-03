@@ -1,18 +1,22 @@
-# Root convenience Makefile. The real builds live in tagger/c (make) and
-# tagger/go (go generate + go build); both compile the shared eBPF program in
-# tagger/bpf. See README.md and the per-loader READMEs.
+# Root convenience Makefile. The eBPF program (tagger/bpf) and the C loader
+# (tagger/c) build separately; the Go loader (tagger/go) uses bpf2go. See the
+# per-directory Makefiles and READMEs.
 
-.PHONY: all c go clean
+.PHONY: all bpf c go clean
 
-all: c   ## build the C loader (default)
+all: c   ## build the C loader (compiles the eBPF program first)
 
-c:       ## build the C loader -> tagger/c/tagger
+bpf:     ## build just the eBPF program -> tagger/bpf/tagger.skel.h
+	$(MAKE) -C tagger/bpf
+
+c: bpf   ## build the C loader -> tagger/c/tagger
 	$(MAKE) -C tagger/c
 
 go:      ## build the Go loader -> tagger/go/tagger-go
-	bpftool btf dump file /sys/kernel/btf/vmlinux format c > tagger/bpf/vmlinux.h
+	$(MAKE) -C tagger/bpf vmlinux.h
 	cd tagger/go && go generate ./... && go build -o tagger-go .
 
-clean:   ## remove build artifacts from both loaders
+clean:   ## remove all build artifacts (bpf + c + go)
+	$(MAKE) -C tagger/bpf clean
 	$(MAKE) -C tagger/c clean
 	rm -f tagger/go/tagger-go tagger/go/tagger_bpfel.go tagger/go/tagger_bpfeb.go tagger/go/*.o
