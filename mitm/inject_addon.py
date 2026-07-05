@@ -5,13 +5,13 @@ HTTP(S) requests it proxies.
 This is the *only* place the header is actually added. Everything else in the
 project exists to make sure the right traffic arrives here, decrypted:
 
-    eBPF tags the agent's sockets → nftables REDIRECTs them here →
-    mitmproxy terminates TLS (with a trusted CA) → THIS addon adds the header →
-    mitmproxy re-encrypts and forwards to the real server.
+    eBPF tags the sockets of an agent's SUBPROCESSES → nftables REDIRECTs them
+    here → mitmproxy terminates TLS (with a trusted CA) → THIS addon adds the
+    header → mitmproxy re-encrypts and forwards to the real server.
 
-Because nftables only redirects an *agent's* marked traffic to this proxy,
-every request seen here already belongs to a configured agent, so by default we
-inject unconditionally.
+The agent process itself is left unmarked; only the tool processes it spawns are
+redirected. So every request seen here already belongs to a subprocess of a
+configured agent, and by default we inject unconditionally.
 
 Optional scoping: set AGENT_INJECT_HOSTS to a comma-separated host list to inject
 only for those destinations (everything else is still proxied, just not stamped).
