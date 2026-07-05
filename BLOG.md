@@ -1,32 +1,31 @@
 # OS-level HTTP tagging for AI coding agents with eBPF, nftables & mitmproxy
 
-I was having an interesting discussion with a friend of mine and we were talking about AI security.
-The discussion was about answering the question: can we tag all the requests a coding agent makes?
+I was having an interesting discussion with a friend of mine and we were talking about security in the context of coding agents.
+The discussion was about answering the question: `Can we tag all the HTTP requests a coding agent makes?`
 Why did we want to answer this question, you may ask.
 
-Coding agents are (typically) run as users, however, coding agents are operating like junior developer employees and acting autonomously.
+Coding agents are run as users, however, coding agents are operating like junior developer employees and acting autonomously.
 These coding agents do make mistakes and perform actions that they shouldn't, not necessarily to be malicious, but because they do not necessarily understand the policy that should be adhered to, or they misread the context.
-The case to apply this would be a dedicated coding agent machine, like running OpenClaw on a dedicated VM.
-This agent you may want to prevent cross environment requests e.g. qa to prod, or you have API endpoints that should not be accessed by an AI.
-A low hanging fruit we thought would be to tag all HTTP requests, by tagging HTTP requests we can demonstrate that we can watch a coding agent and enforce policy upon it.
-And policy enforcement must be guaranteed not a best effort.
+
+We wanted to see if we could prove out that we could limit the interface of user configuration and catch all requests a coding agent issued.
+Why this may be useful is in cases where you want to prevent cross environment requests e.g. qa to prod, or you have API endpoints that should not be accessed by an AI.
+A low hanging fruit we thought would be to tag all HTTP requests, by tagging HTTP requests we can demonstrate that we can watch a coding agent and modify requests, which demonstrates strong control and if you are in the business of policy enforcement it is not about best efforts, you are implementing be guarantees.
+As a sweeping statement, by tagging the HTTP requests of all coding agents, you could apply logic to applications that if an HTTP request contains a certain header e.g. `X-AI-AGENT: TRUE`, you could then deny the request.
+This could be useful if a system allows read operations to be consumed by coding agents, but destructive ones be denied.
 
 So if you are thinking, well just run all the API requests made by a coding agent through a proxy to tag HTTP requests, this is not enforceable or guaranteed.
-Setting a proxy for a Coding agent will use a proxy for the coding agent but is not guaranteed on subprocesses.
-You can not use a skill bundled with scripts that use a proxy because Claude can skip the proxy and re-write the script, or re-execute it.
+The reason for this are as follows; Setting a proxy in a coding agent configuration will use a proxy for the coding agent but is **not** guaranteed on **subprocesses**, take the example prompt `Create a cURL request that will connect to postman-echo.com `, unless you specify in your prompt to use a proxy it will not use it, i.e. not a guarantee.
+Additionally if you take a [Skill](http://agentskills.io/) bundled with scripts that use a proxy I have see cases where a script does not work so claude will re-write the script, again no garuntee your proxy will be used.
 Then there is the other issue, if you have your coding agent write a Go script, this is compiled and ran, how do you intercept this request?
 
-Using a prompt as a guardrail for enforcement to tag all its subprocess HTTP requests is about as reliable as Rick agreeing to a 20 minute adventure.
-Useless.
+Using a prompt as a guardrail for enforcement to tag all its subprocess HTTP requests is impossible.
 
 Another argument, set the HTTP(S)_PROXY up.
 This means that only apps or services that respect the Env variable will adhere to HTTP(S)_PROXY.
 Again we want this to be a guaranteed enforcement we can not depend on the language we are running to use this.
 It needs to be done on the connection.
 
-I believe that this idea can be taken to many places, however, I wanted to start by looking at tagging HTTP requests as it seemed like it could yield tangible value for others quickly.
-As a sweeping statement, by tagging the HTTP requests of all coding agents, you could apply logic to applications that if an HTTP request contains a certain header e.g. `X-AI-AGENT: TRUE`, you could then deny the request.
-This could be useful if a system allows read operations to be consumed by coding agents, but destructive ones be denied.
+<!-- I believe that this idea can be taken to many places, however, I wanted to start by looking at tagging HTTP requests as it seemed like it could yield tangible value for others quickly. -->
 
 As mentioned, for a guarantee of tagging of the HTTP request from a coding agent, we can not apply this as a prompt, it must be done at the OS level.
 Additionally to add to the complexity the majority of requests are going to be HTTPS requests, so how do we man-in-the-middle the request?
@@ -34,7 +33,6 @@ Additionally to add to the complexity the majority of requests are going to be H
 ## Architecture proposal
 
 The solution proposed is as follows
-
 
 ```mermaid
 flowchart LR
@@ -48,15 +46,17 @@ flowchart LR
     PX --> S["real server"]
 ```
 
-The architecture proposal is to tag the Coding Agents sub processes with eBPF and all the subprocess.
+The architecture proposal is to tag the Coding Agents sub processes with eBPF.
 This would allow for all network calls to be identified and modified.
 The modified network calls would route to a locally running proxy which would then decrypt the request add a header and forward it onto the real server.
 
 One deliberate scope choice: we tag the tools the agent **spawns** — its actions on the world, like `curl`, `git`, or a script it writes — and leave the agent's *own* model/API traffic untouched. We never decrypt the agent's own credentials; we only mark what it does through its subprocesses.
 
-## Video demo
+## E2E Video demo
 
-> INSERT VIDEO HERE
+The TL;DR is that I could demonstrate that its possible to tag all the network requests coming out of the coding agent and insert a HTTP header every time whatever the coding language or was run.
+
+<video controls src="images/demo-vid.mp4" title="Title"></video>
 
 ## How does it work
 
@@ -126,6 +126,4 @@ Do you think this approach is plain wrong and do you think that prompt guardrail
 
 Please let me know in the comments your opinions are greatly valued.
 
-
 > This post is from my own research and my own thoughts, this is in no way affiliated with the company I work for.
-
