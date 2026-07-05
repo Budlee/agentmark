@@ -43,6 +43,16 @@
     blockquote { margin:1.5rem 0; padding:.2rem 1rem; color:var(--muted);
       border-left:4px solid var(--border); }
     .mermaid { text-align:center; margin:1.5rem 0; }
+    nav.toc { margin:1.5rem 0 2.2rem; padding:1rem 1.25rem; background:var(--code-bg);
+      border:1px solid var(--border); border-radius:8px; }
+    nav.toc .toc-title { margin:0 0 .6rem; font-weight:600; font-size:.8rem;
+      text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    nav.toc ul { margin:0; padding-left:1.15rem; }
+    nav.toc li { margin:.25rem 0; }
+    nav.toc li.toc-demo { list-style:none; margin:.1rem 0 .6rem -1.15rem; }
+    nav.toc li.toc-demo a { display:inline-block; padding:.45rem .9rem; font-weight:600;
+      color:#fff; background:var(--accent); border-radius:6px; }
+    nav.toc li.toc-demo a:hover { text-decoration:none; opacity:.92; }
     .loading { color:var(--muted); }
     footer { max-width:820px; margin:0 auto; padding:2rem 1.25rem; color:var(--muted);
       font-size:.9rem; border-top:1px solid var(--border); }
@@ -77,6 +87,7 @@
           v.setAttribute("playsinline", "");
           v.setAttribute("poster", "images/demo-poster.jpg");
           v.src = "images/demo-vid-web.mp4";
+          v.id = "demo";                       // stable anchor: …/#demo lands on the player
           const dl = document.createElement("p");
           dl.className = "download";
           dl.innerHTML = '<a href="' + RELEASE_HD + '">&#11015; Download full-quality 1440p version</a>';
@@ -91,6 +102,36 @@
           code.closest("pre").replaceWith(div);
         });
         mermaid.run({ querySelector: ".mermaid" });
+
+        // Build a table of contents from the H2 sections, with a prominent jump
+        // straight to the video so nobody has to scroll for it.
+        const slug = function (t) {
+          return t.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        };
+        let demoLinked = false;
+        let html = '<p class="toc-title">On this page</p><ul>';
+        el.querySelectorAll("h2").forEach(function (h) {
+          h.id = slug(h.textContent);
+          const isDemo = !demoLinked && /video|demo/i.test(h.textContent);
+          if (isDemo) demoLinked = true;
+          const href = isDemo ? "#demo" : "#" + h.id;
+          const text = isDemo ? "▶ Watch the demo" : h.textContent;
+          html += '<li' + (isDemo ? ' class="toc-demo"' : "") +
+                  '><a href="' + href + '">' + text + "</a></li>";
+        });
+        html += "</ul>";
+        const toc = document.createElement("nav");
+        toc.className = "toc";
+        toc.innerHTML = html;
+        const h1 = el.querySelector("h1");
+        if (h1) { h1.insertAdjacentElement("afterend", toc); } else { el.prepend(toc); }
+
+        // Content is injected asynchronously, so re-honour an inbound #hash
+        // (e.g. a shared …/#demo link) now that the anchors exist.
+        if (location.hash) {
+          const target = document.getElementById(location.hash.slice(1));
+          if (target) target.scrollIntoView();
+        }
       })
       .catch(function (e) {
         document.getElementById("content").innerHTML =
