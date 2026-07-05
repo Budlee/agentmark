@@ -15,7 +15,7 @@ This could be useful if a system allows read operations to be consumed by coding
 
 So if you are thinking, well just run all the API requests made by a coding agent through a proxy to tag HTTP requests, this is not enforceable or guaranteed.
 The reason for this are as follows; Setting a proxy in a coding agent configuration will use a proxy for the coding agent but is **not** guaranteed on **subprocesses**, take the example prompt `Create a cURL request that will connect to postman-echo.com `, unless you specify in your prompt to use a proxy it will not use it, i.e. not a guarantee.
-Additionally if you take a [Skill](http://agentskills.io/) bundled with scripts that use a proxy I have see cases where a script does not work so claude will re-write the script, again no garuntee your proxy will be used.
+Additionally if you take a [Skill](http://agentskills.io/) bundled with scripts that use a proxy I have see cases where a script does not work so claude will re-write the script, again no guarantee your proxy will be used.
 Then there is the other issue, if you have your coding agent write a Go script, this is compiled and ran, how do you intercept this request?
 
 Using a prompt as a guardrail for enforcement to tag all its subprocess HTTP requests is impossible.

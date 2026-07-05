@@ -86,13 +86,13 @@ sudo sysctl -w net.ipv4.conf.default.route_localnet=1
 sudo sysctl -w net.ipv4.conf.all.send_redirects=0
 ```
 
-## relauch the mitm 
+## relaunch the mitm 
 
 ```shell
 sudo mitmdump --mode transparent --showhost --set confdir=/etc/agentmark/mitmproxy -s mitm/inject_addon.py --listen-port 8080
 ```
 
-## relauch the claude
+## relaunch the claude
 
 ```shell
 unset HTTP_PROXY
