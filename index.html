@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OS-level HTTP tagging for AI coding agents with eBPF, nftables &amp; mitmproxy</title>
+
+  <!-- Social preview (LinkedIn/Twitter read these static tags, not the JS-rendered body) -->
+  <meta name="description" content="A validated experiment: guaranteeing an X-AI-AGENT header on every HTTP request a coding agent makes, enforced at the OS level with eBPF, nftables and mitmproxy.">
+  <meta property="og:type" content="video.other">
+  <meta property="og:url" content="https://budlee.github.io/agentmark/">
+  <meta property="og:title" content="OS-level HTTP tagging for AI coding agents with eBPF">
+  <meta property="og:description" content="Tagging every HTTP request a coding agent makes with X-AI-AGENT — a hard, OS-level guarantee via eBPF, nftables and mitmproxy, not a best-effort prompt.">
+  <meta property="og:image" content="https://budlee.github.io/agentmark/images/demo-poster.jpg">
+  <meta property="og:video" content="https://budlee.github.io/agentmark/images/demo-vid-web.mp4">
+  <meta property="og:video:type" content="video/mp4">
+  <meta property="og:video:width" content="1280">
+  <meta property="og:video:height" content="720">
+  <meta name="twitter:card" content="player">
+  <meta name="twitter:title" content="OS-level HTTP tagging for AI coding agents with eBPF">
+  <meta name="twitter:description" content="Guaranteeing an X-AI-AGENT header on every request a coding agent makes, enforced at the OS level.">
+  <meta name="twitter:image" content="https://budlee.github.io/agentmark/images/demo-poster.jpg">
+
+  <style>
+    :root { --fg:#1b1f23; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --bg:#ffffff; --code-bg:#f6f8fa; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg);
+      font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+    main { max-width:820px; margin:0 auto; padding:2.5rem 1.25rem 5rem; }
+    h1 { font-size:2rem; line-height:1.25; margin:.2em 0 .6em; }
+    h2 { margin-top:2.2rem; padding-bottom:.3rem; border-bottom:1px solid var(--border); }
+    h3 { margin-top:1.8rem; }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    video { width:100%; height:auto; border:1px solid var(--border); border-radius:8px;
+      background:#000; margin:.5rem 0; }
+    p.download { margin:.4rem 0 1.5rem; font-size:.95rem; }
+    p.download a { display:inline-block; padding:.4rem .8rem; border:1px solid var(--border);
+      border-radius:6px; background:var(--code-bg); }
+    pre { background:var(--code-bg); padding:1rem; border-radius:8px; overflow:auto; }
+    code { background:var(--code-bg); padding:.15em .35em; border-radius:4px; font-size:.9em; }
+    pre code { background:none; padding:0; }
+    blockquote { margin:1.5rem 0; padding:.2rem 1rem; color:var(--muted);
+      border-left:4px solid var(--border); }
+    .mermaid { text-align:center; margin:1.5rem 0; }
+    .loading { color:var(--muted); }
+    footer { max-width:820px; margin:0 auto; padding:2rem 1.25rem; color:var(--muted);
+      font-size:.9rem; border-top:1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <main>
+    <article id="content"><p class="loading">Loading…</p></article>
+  </main>
+  <footer>
+    Source &amp; code: <a href="https://github.com/Budlee/agentmark">github.com/Budlee/agentmark</a>
+    · <a href="https://github.com/Budlee/agentmark/releases/tag/demo-video">Download the demo video</a>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
+    const RELEASE_HD = "https://github.com/Budlee/agentmark/releases/download/demo-video/agentmark-demo.mp4";
+
+    fetch("BLOG.md")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+      .then(function (md) {
+        const el = document.getElementById("content");
+        el.innerHTML = marked.parse(md);
+
+        // Upgrade the blog's <video> to the streaming web file + a full-quality download link.
+        const v = el.querySelector("video");
+        if (v) {
+          v.setAttribute("controls", "");
+          v.setAttribute("preload", "metadata");
+          v.setAttribute("playsinline", "");
+          v.setAttribute("poster", "images/demo-poster.jpg");
+          v.src = "images/demo-vid-web.mp4";
+          const dl = document.createElement("p");
+          dl.className = "download";
+          dl.innerHTML = '<a href="' + RELEASE_HD + '">&#11015; Download full-quality 1440p version</a>';
+          v.insertAdjacentElement("afterend", dl);
+        }
+
+        // Turn ```mermaid code blocks into rendered diagrams.
+        el.querySelectorAll("code.language-mermaid").forEach(function (code) {
+          const div = document.createElement("div");
+          div.className = "mermaid";
+          div.textContent = code.textContent;
+          code.closest("pre").replaceWith(div);
+        });
+        mermaid.run({ querySelector: ".mermaid" });
+      })
+      .catch(function (e) {
+        document.getElementById("content").innerHTML =
+          "<p>Could not load the writeup. Read it on " +
+          '<a href="https://github.com/Budlee/agentmark/blob/main/BLOG.md">GitHub</a>.</p>';
+        console.error(e);
+      });
+  </script>
+</body>
+</html>
