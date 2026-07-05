@@ -1,0 +1,15 @@
+# GitHub Pages (Jekyll) configuration. The site is served from the repo root.
+#
+# Keep the PUBLISHED site small so the Pages deploy (file-sync stage) succeeds:
+# GitHub Pages struggles to sync large binaries. The heavy source videos are
+# excluded here — the full-quality 1440p cut is hosted on the GitHub Release,
+# and the page streams the lighter images/demo-vid-web.mp4 (~22 MB), which is
+# kept in the build for reliable inline playback.
+#
+# Files without YAML front matter (index.html, BLOG.md, code) are copied
+# verbatim, so the client-side rendering of BLOG.md keeps working.
+title: "agentmark — OS-level HTTP tagging for AI coding agents"
+
+exclude:
+  - images/demo-vid.mp4
+  - images/demo-vid-min.mp4
