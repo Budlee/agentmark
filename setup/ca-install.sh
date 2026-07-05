@@ -5,8 +5,8 @@
 # launch-time action by the user.
 #
 #   curl / Go / OpenSSL / Python stdlib  → system trust store (/etc/ssl/certs)
+#   distro Node (links system libssl)    → system trust store (/etc/ssl/certs) too
 #   Python requests/httpx                → certifi bundle
-#   Node                                 → NODE_EXTRA_CA_CERTS (via /etc/environment)
 #
 # Idempotent. Run as root. See the README ("The CA") for why this is unavoidable.
 #
@@ -38,17 +38,14 @@ echo "[*] Installing CA into the system trust store ..."
 cp "$CA_PEM" "$CA_DST"
 update-ca-certificates >/dev/null
 
-# 3) Node is the one runtime that ignores BOTH the system store and certifi, so it
-#    needs an explicit pointer. /etc/environment is read by PAM on login → the var
-#    is inherited by every child process an agent spawns. curl/Go/Python need no
-#    env var (they're covered by steps 2 and 4).
-echo "[*] Writing /etc/environment entry (Node) ..."
+# 3) No /etc/environment entry needed. Distro/apt Node links the system libssl and
+#    reads the system trust store (step 2), so it trusts the CA without any env var
+#    — same as curl/Go/Python. We only strip any NODE_EXTRA_CA_CERTS block a previous
+#    install may have left, so re-running self-heals. (Self-contained Node builds —
+#    nvm / official binaries — bundle their own CAs and would still need
+#    NODE_EXTRA_CA_CERTS; add it yourself if you run one.)
+echo "[*] Removing any stale agentmark /etc/environment entry ..."
 sed -i '/# >>> agentmark >>>/,/# <<< agentmark <<</d' "$ENV_FILE" 2>/dev/null || true
-cat >> "$ENV_FILE" <<EOF
-# >>> agentmark >>>
-NODE_EXTRA_CA_CERTS=$CA_PEM
-# <<< agentmark <<<
-EOF
 
 # 4) Best-effort: append to the system Python's certifi bundle (requests/httpx
 #    use certifi by default and ignore the system store).
