@@ -49,10 +49,6 @@
       text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
     nav.toc ul { margin:0; padding-left:1.15rem; }
     nav.toc li { margin:.25rem 0; }
-    nav.toc li.toc-demo { list-style:none; margin:.1rem 0 .6rem -1.15rem; }
-    nav.toc li.toc-demo a { display:inline-block; padding:.45rem .9rem; font-weight:600;
-      color:#fff; background:var(--accent); border-radius:6px; }
-    nav.toc li.toc-demo a:hover { text-decoration:none; opacity:.92; }
     .loading { color:var(--muted); }
     footer { max-width:820px; margin:0 auto; padding:2rem 1.25rem; color:var(--muted);
       font-size:.9rem; border-top:1px solid var(--border); }
@@ -115,9 +111,8 @@
           const isDemo = !demoLinked && /video|demo/i.test(h.textContent);
           if (isDemo) demoLinked = true;
           const href = isDemo ? "#demo" : "#" + h.id;
-          const text = isDemo ? "▶ Watch the demo" : h.textContent;
-          html += '<li' + (isDemo ? ' class="toc-demo"' : "") +
-                  '><a href="' + href + '">' + text + "</a></li>";
+          const text = isDemo ? "Watch the demo" : h.textContent;
+          html += '<li><a href="' + href + '">' + text + "</a></li>";
         });
         html += "</ul>";
         const toc = document.createElement("nav");
